@@ -10,7 +10,8 @@ from aiogram.utils.keyboard import InlineKeyboardBuilder
 
 # --- .env o'qish (dotenv'siz) ---
 ENV_PATH = Path(__file__).resolve().parent / ".env"
-BOT_TOKEN = None
+import os
+BOT_TOKEN = os.environ.get("BOT_TOKEN")
 if ENV_PATH.exists():
     for line in ENV_PATH.read_text(encoding="utf-8-sig").splitlines():
         if line.startswith("BOT_TOKEN="):
