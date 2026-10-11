@@ -142,21 +142,36 @@ async def identify_and_show(status: Message, path: str):
     await status.edit_text(text, reply_markup=kb)
 
 
-# --- YouTube cookie (Railway uchun) ---
+# --- Cookie (YouTube va Instagram, Railway uchun) ---
 import base64
 import tempfile
 
 COOKIES_PATH = None
-_b64 = os.environ.get("YT_COOKIES_B64")
-if _b64:
-    try:
-        COOKIES_PATH = Path(tempfile.gettempdir()) / "yt_cookies.txt"
-        COOKIES_PATH.write_bytes(base64.b64decode(_b64))
-    except Exception as e:
-        COOKIES_PATH = None
-        print("Cookie o'qilmadi:", e)
+_parts = []
+for _name in ("YT_COOKIES_B64", "IG_COOKIES_B64"):
+    _val = os.environ.get(_name)
+    if _val:
+        try:
+            _text = base64.b64decode(_val).decode("utf-8")
+            _parts.append(_text.replace("\r\n", "\n").strip())
+        except Exception as e:
+            print(_name, "o'qilmadi:", e)
+if _parts:
+    COOKIES_PATH = Path(tempfile.gettempdir()) / "cookies.txt"
+    COOKIES_PATH.write_text("\n".join(_parts) + "\n", encoding="utf-8")
 
 _OrigYDL = yt_dlp.YoutubeDL
+
+
+class _CookieYDL(_OrigYDL):
+    def __init__(self, params=None, *args, **kwargs):
+        params = dict(params or {})
+        if COOKIES_PATH:
+            params.setdefault("cookiefile", str(COOKIES_PATH))
+        super().__init__(params, *args, **kwargs)
+
+
+yt_dlp.YoutubeDL = _CookieYDL
 
 
 class _CookieYDL(_OrigYDL):
