@@ -14,12 +14,15 @@ _BG_SESSION = None
 def remove_background(src: str, dst: str):
     """rembg orqali rasmning orqa fonini olib tashlaydi (PNG saqlaydi)."""
     global _BG_SESSION
+    from PIL import Image
     from rembg import new_session, remove
 
     if _BG_SESSION is None:
-        _BG_SESSION = new_session("u2net")  # birinchi marta model yuklanadi
-    data = Path(src).read_bytes()
-    Path(dst).write_bytes(remove(data, session=_BG_SESSION))
+        _BG_SESSION = new_session("u2netp")  # yengil model
+    img = Image.open(src).convert("RGB")
+    img.thumbnail((1024, 1024))  # xotirani tejash uchun rasmni kichraytiramiz
+    out = remove(img, session=_BG_SESSION)
+    out.save(dst, "PNG")
 
 
 async def process_image(message: Message, file_obj):
