@@ -140,3 +140,31 @@ async def identify_and_show(status: Message, path: str):
     }
     text, kb = render_page(query, results, 0)
     await status.edit_text(text, reply_markup=kb)
+
+
+# --- YouTube cookie (Railway uchun) ---
+import base64
+import tempfile
+
+COOKIES_PATH = None
+_b64 = os.environ.get("YT_COOKIES_B64")
+if _b64:
+    try:
+        COOKIES_PATH = Path(tempfile.gettempdir()) / "yt_cookies.txt"
+        COOKIES_PATH.write_bytes(base64.b64decode(_b64))
+    except Exception as e:
+        COOKIES_PATH = None
+        print("Cookie o'qilmadi:", e)
+
+_OrigYDL = yt_dlp.YoutubeDL
+
+
+class _CookieYDL(_OrigYDL):
+    def __init__(self, params=None, *args, **kwargs):
+        params = dict(params or {})
+        if COOKIES_PATH:
+            params.setdefault("cookiefile", str(COOKIES_PATH))
+        super().__init__(params, *args, **kwargs)
+
+
+yt_dlp.YoutubeDL = _CookieYDL
