@@ -1,18 +1,22 @@
 import asyncio
+import base64
 import glob
 import math
+import os
 import re
+import tempfile
 from pathlib import Path
 
 import yt_dlp
 from aiogram.types import Message
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 
-# --- .env o'qish (dotenv'siz) ---
+from texts import t
+
+# --- Token: avval muhit o'zgaruvchisi (Railway), bo'lmasa .env fayli ---
 ENV_PATH = Path(__file__).resolve().parent / ".env"
-import os
 BOT_TOKEN = os.environ.get("BOT_TOKEN")
-if ENV_PATH.exists():
+if not BOT_TOKEN and ENV_PATH.exists():
     for line in ENV_PATH.read_text(encoding="utf-8-sig").splitlines():
         if line.startswith("BOT_TOKEN="):
             BOT_TOKEN = line.split("=", 1)[1].strip()
@@ -25,6 +29,34 @@ URL_RE = re.compile(r"https?://\S+")
 SEARCH_CACHE = {}
 # qisqa token -> video havolasi
 URL_CACHE = {}
+
+# --- Cookie (YouTube va Instagram, Railway uchun) ---
+COOKIES_PATH = None
+_parts = []
+for _name in ("YT_COOKIES_B64", "IG_COOKIES_B64"):
+    _val = os.environ.get(_name)
+    if _val:
+        try:
+            _text = base64.b64decode(_val).decode("utf-8")
+            _parts.append(_text.replace("\r\n", "\n").strip())
+        except Exception as e:
+            print(_name, "o'qilmadi:", e)
+if _parts:
+    COOKIES_PATH = Path(tempfile.gettempdir()) / "cookies.txt"
+    COOKIES_PATH.write_text("\n".join(_parts) + "\n", encoding="utf-8")
+
+_OrigYDL = yt_dlp.YoutubeDL
+
+
+class _CookieYDL(_OrigYDL):
+    def __init__(self, params=None, *args, **kwargs):
+        params = dict(params or {})
+        if COOKIES_PATH:
+            params.setdefault("cookiefile", str(COOKIES_PATH))
+        super().__init__(params, *args, **kwargs)
+
+
+yt_dlp.YoutubeDL = _CookieYDL
 
 
 def download_audio_url(url: str, outdir: str):
@@ -122,17 +154,16 @@ def render_page(query: str, results: list, page: int):
 
 async def identify_and_show(status: Message, path: str):
     """Fayldagi musiqani aniqlaydi va 10 variantli ro'yxatni ko'rsatadi."""
+    uid = status.chat.id
     found = await recognize_song(path)
     if not found:
-        await status.edit_text(
-            "Musiqa aniqlanmadi. Qo'shiq nomini o'zingiz yozib qidirishingiz mumkin."
-        )
+        await status.edit_text(t(uid, "not_recognized"))
         return
     artist, title = found
     query = f"{artist} - {title}".strip(" -")
     results = await asyncio.to_thread(search_music, query)
     if not results:
-        await status.edit_text(f"Aniqlandi: {query}\nLekin variantlar topilmadi.")
+        await status.edit_text(t(uid, "recognized_no_results", query=query))
         return
     SEARCH_CACHE[(status.chat.id, status.message_id)] = {
         "query": query,
@@ -140,46 +171,3 @@ async def identify_and_show(status: Message, path: str):
     }
     text, kb = render_page(query, results, 0)
     await status.edit_text(text, reply_markup=kb)
-
-
-# --- Cookie (YouTube va Instagram, Railway uchun) ---
-import base64
-import tempfile
-
-COOKIES_PATH = None
-_parts = []
-for _name in ("YT_COOKIES_B64", "IG_COOKIES_B64"):
-    _val = os.environ.get(_name)
-    if _val:
-        try:
-            _text = base64.b64decode(_val).decode("utf-8")
-            _parts.append(_text.replace("\r\n", "\n").strip())
-        except Exception as e:
-            print(_name, "o'qilmadi:", e)
-if _parts:
-    COOKIES_PATH = Path(tempfile.gettempdir()) / "cookies.txt"
-    COOKIES_PATH.write_text("\n".join(_parts) + "\n", encoding="utf-8")
-
-_OrigYDL = yt_dlp.YoutubeDL
-
-
-class _CookieYDL(_OrigYDL):
-    def __init__(self, params=None, *args, **kwargs):
-        params = dict(params or {})
-        if COOKIES_PATH:
-            params.setdefault("cookiefile", str(COOKIES_PATH))
-        super().__init__(params, *args, **kwargs)
-
-
-yt_dlp.YoutubeDL = _CookieYDL
-
-
-class _CookieYDL(_OrigYDL):
-    def __init__(self, params=None, *args, **kwargs):
-        params = dict(params or {})
-        if COOKIES_PATH:
-            params.setdefault("cookiefile", str(COOKIES_PATH))
-        super().__init__(params, *args, **kwargs)
-
-
-yt_dlp.YoutubeDL = _CookieYDL
