@@ -2,4 +2,4 @@
    yt-dlp
    shazamio
    rembg[cpu]
-# v2
+# v3
