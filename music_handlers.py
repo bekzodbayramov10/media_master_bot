@@ -9,7 +9,7 @@ from aiogram.types import CallbackQuery, FSInputFile, Message
 from common import (
     MAX_SIZE,
     SEARCH_CACHE,
-    download_audio_url,
+    download_music,
     identify_and_show,
     render_page,
     search_music,
@@ -105,12 +105,16 @@ async def cb_pick(call: CallbackQuery):
     status = await call.message.answer(t(uid, "downloading", title=item["title"]))
     try:
         with tempfile.TemporaryDirectory() as tmp:
-            url = f"https://www.youtube.com/watch?v={item['id']}"
-            path, _ = await asyncio.to_thread(download_audio_url, url, tmp)
+            path, _, source = await asyncio.to_thread(
+                download_music, item["id"], item["title"], tmp
+            )
             if not path or os.path.getsize(path) > MAX_SIZE:
                 await status.edit_text(t(uid, "music_fail"))
                 return
-            await call.message.answer_audio(FSInputFile(path), title=item["title"])
+            caption = t(uid, "from_soundcloud") if source == "soundcloud" else None
+            await call.message.answer_audio(
+                FSInputFile(path), title=item["title"], caption=caption
+            )
         await status.delete()
     except Exception as e:
         await status.edit_text(t(uid, "error", err=str(e)[:300]))

@@ -59,8 +59,8 @@ class _CookieYDL(_OrigYDL):
 yt_dlp.YoutubeDL = _CookieYDL
 
 
-def download_audio_url(url: str, outdir: str):
-    """Havoladan audioni mp3 qilib yuklaydi. (fayl yo'li, nomi) qaytaradi."""
+def _download_audio(target: str, outdir: str):
+    """target: havola yoki 'scsearch1:...' qidiruvi. (fayl yo'li, nomi) qaytaradi."""
     opts = {
         "outtmpl": f"{outdir}/%(id)s.%(ext)s",
         "format": "bestaudio/best",
@@ -77,10 +77,39 @@ def download_audio_url(url: str, outdir: str):
         ],
     }
     with yt_dlp.YoutubeDL(opts) as ydl:
-        info = ydl.extract_info(url, download=True)
+        info = ydl.extract_info(target, download=True)
+    if info and info.get("entries"):
+        info = info["entries"][0]
     files = glob.glob(f"{outdir}/*.mp3")
     title = (info or {}).get("title") or "Musiqa"
     return (files[0] if files else None), title
+
+
+def download_audio_url(url: str, outdir: str):
+    """Havoladan audioni mp3 qilib yuklaydi. (fayl yo'li, nomi) qaytaradi."""
+    return _download_audio(url, outdir)
+
+
+def clean_title(title: str) -> str:
+    """SoundCloud qidiruvi uchun sarlavhani tozalaydi: (Official video) kabilarni olib tashlaydi."""
+    cleaned = re.sub(r"[\(\[].*?[\)\]]", " ", title)
+    cleaned = re.sub(r"(?i)\b(official|video|audio|lyrics?|clip)\b", " ", cleaned)
+    cleaned = re.sub(r"\s+", " ", cleaned).strip()
+    return cleaned or title
+
+
+def download_music(video_id: str, title: str, outdir: str):
+    """Avval YouTube, bloklangan bo'lsa SoundCloud'dan yuklaydi. (yo'l, nom, manba) qaytaradi."""
+    try:
+        path, name = _download_audio(
+            f"https://www.youtube.com/watch?v={video_id}", outdir
+        )
+        if path:
+            return path, name, "youtube"
+    except Exception as e:
+        print("YouTube xatosi:", str(e)[:200])
+    path, name = _download_audio(f"scsearch1:{clean_title(title)}", outdir)
+    return path, name, "soundcloud"
 
 
 def search_music(query: str):
